@@ -61,5 +61,4 @@ def segment(xy: np.ndarray) -> Tuple[List[List[int]], List[int], int]:
     # 總片段數
     num_segments = len(segments)
 
-    # 回傳三個輸出值，對應 Matlab 的 [Seg, Si_n, S_n]
     return segments, segment_sizes, num_segments
