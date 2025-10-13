@@ -8,10 +8,10 @@ from geometry_msgs.msg import Point
 from sensor_msgs.msg import LaserScan
 from visualization_msgs.msg import Marker, MarkerArray
 
-from Segment import segment
+from utils.Segment import segment
 
 marker_pub = None
-
+i = 0
 
 def gen_hsv_colors(i, total):
     """
@@ -31,8 +31,6 @@ def marker_publish(segments, num_segments, points, frame_id):
     clear_marker = Marker()
     clear_marker.header.frame_id = frame_id
     clear_marker.header.stamp = rospy.Time.now()
-    clear_marker.ns = 'ds_mid'
-    clear_marker.id = 0
     clear_marker.action = Marker.DELETEALL
     marker_array.markers.append(clear_marker)
     marker_pub.publish(marker_array)
@@ -98,11 +96,12 @@ def marker_publish(segments, num_segments, points, frame_id):
 
             marker_array.markers.append(text_marker)
 
-        if marker_array.markers:
-            marker_pub.publish(marker_array)
+    if marker_array.markers:
+        marker_pub.publish(marker_array)
 
 
 def scan_callback(scan: LaserScan):
+    global i
     ranges = np.array(scan.ranges)
     angles = scan.angle_min + np.arange(len(ranges)) * scan.angle_increment
 
@@ -113,10 +112,12 @@ def scan_callback(scan: LaserScan):
 
     # 呼叫分割函數
     segments, _, num_segments = segment(points)
-    rospy.loginfo(f'Found {num_segments} segments.')
+    rospy.loginfo(f'{i}: Found {num_segments} segments.')
 
     # rviz標記
     marker_publish(segments, num_segments, points, scan.header.frame_id)
+
+    i += 1
 
 
 def main():
