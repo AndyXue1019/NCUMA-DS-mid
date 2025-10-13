@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <launch>
-  <node pkg="ds_mid" type="training.py" name="training"  output="screen">
+  <node pkg="ds_mid" type="main.py" name="main"  output="screen">
   </node>
   <node pkg="rviz" type="rviz" name="rviz" required="true"
         args="-d $(find ds_mid)/rviz/rviz.rviz"/>
