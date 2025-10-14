@@ -6,9 +6,9 @@ from typing import List
 import numpy as np
 import rosbag
 from sensor_msgs.msg import LaserScan
+
 from utils.Adaboost import adaboost_predict, adaboost_train
-from utils.Feature import extract_features
-from utils.Segment import segment
+from utils.Segment import extract_features, segment
 
 data_train = []
 label_train = []
@@ -107,23 +107,25 @@ def data_label_prepare(bag_file, label_file, mode='train'):
             # 點的數量
             # n = Si_n[i]
 
-            fetures = [Si_n[i]] + extract_features(segment_points)
+            features = extract_features(segment_points)
 
             if mode == 'train':
-                data_train.append(fetures)
+                data_train.append(features)
                 label_train.append(PN[i])
             else:
-                data_test.append(fetures)
+                data_test.append(features)
                 label_test.append(PN[i])
 
 
 def main():
     global data_train, label_train, data_test, label_test
-    bag_file = '../data/data_{}.bag'
-    label_file = '../data/data_{}_label.csv'
+    bag_file = './data/data_{}.bag'
+    label_file = './data/data_{}_label.csv'
 
     # 準備訓練資料 (可自訂)
+    print('準備訓練資料...')
     data_label_prepare(bag_file.format('1'), label_file.format('1'), mode='train')
+    print('準備測試資料...')
     data_label_prepare(bag_file.format('2'), label_file.format('2'), mode='test')
     data_label_prepare(bag_file.format('3'), label_file.format('3'), mode='test')
 
@@ -145,7 +147,8 @@ def main():
     stumps, alphas = adaboost_train(data_train, label_train, T=50)
 
     # 儲存訓練好的模型
-    np.savez('../model/adaboost_model.npz', stumps=stumps, alphas=alphas)
+    np.savez('./model/adaboost_model.npz', stumps=stumps, alphas=alphas)
+    print('模型已儲存至 ./model/adaboost_model.npz')
 
     train_pred = adaboost_predict(data_train, stumps, alphas)
     test_pred = adaboost_predict(data_test, stumps, alphas)

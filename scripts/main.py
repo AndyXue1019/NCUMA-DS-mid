@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 import colorsys
+import os
 
 import numpy as np
 import rospy
@@ -8,10 +9,20 @@ from geometry_msgs.msg import Point
 from sensor_msgs.msg import LaserScan
 from visualization_msgs.msg import Marker, MarkerArray
 
-from utils.Segment import segment
+from utils.Adaboost import adaboost_predict
+from utils.Segment import extract_features, segment
 
 marker_pub = None
 i = 0
+stumps = None
+alphas = None
+
+LABEL_COLORS = {
+    'B': (0.0, 0.0, 1.0),  # Blue for Box
+    'C': (1.0, 0.0, 0.0),  # Red for Circle
+    'O': (0.5, 0.5, 0.5),  # Gray for Other
+}
+
 
 def gen_hsv_colors(i, total):
     """
@@ -25,7 +36,7 @@ def gen_hsv_colors(i, total):
     return r, g, b
 
 
-def marker_publish(segments, num_segments, points, frame_id):
+def marker_publish(segments, points, predictions, frame_id):
     marker_array = MarkerArray()
 
     clear_marker = Marker()
@@ -34,10 +45,13 @@ def marker_publish(segments, num_segments, points, frame_id):
     clear_marker.action = Marker.DELETEALL
     marker_array.markers.append(clear_marker)
     marker_pub.publish(marker_array)
-    
+
     marker_array = MarkerArray()
 
     for i, seg in enumerate(segments):
+        if not seg:
+            continue
+
         marker = Marker()
         marker.header.frame_id = frame_id
         marker.header.stamp = rospy.Time.now()
@@ -51,19 +65,17 @@ def marker_publish(segments, num_segments, points, frame_id):
         # 點的大小
         marker.scale.x = 0.03
         marker.scale.y = 0.03
-        marker.scale.z = 0.05 # 不重要
+        marker.scale.z = 0.05  # 不重要
 
         # 點的顏色
-        r, g, b = gen_hsv_colors(i, num_segments)
+        pred_label = predictions[i]
+        r, g, b = LABEL_COLORS.get(pred_label, (1.0, 1.0, 1.0))  # 預設為白色
         marker.color.r = r
         marker.color.g = g
         marker.color.b = b
-        marker.color.a = 1.0 # 不透明
+        marker.color.a = 1.0  # 不透明
 
-        marker.points = [
-            Point(points[idx, 0], points[idx, 1], 0) 
-            for idx in seg
-        ]
+        marker.points = [Point(points[idx, 0], points[idx, 1], 0) for idx in seg]
 
         marker_array.markers.append(marker)
 
@@ -83,16 +95,16 @@ def marker_publish(segments, num_segments, points, frame_id):
 
             text_marker.pose.position.x = coords[0]
             text_marker.pose.position.y = coords[1]
-            text_marker.pose.position.z = 0.2 # 文字稍微抬高
-            text_marker.pose.orientation.w = 1.0 # 無旋轉
+            text_marker.pose.position.z = 0.2  # 文字稍微抬高
+            text_marker.pose.orientation.w = 1.0  # 無旋轉
 
-            text_marker.text = str(i) # 文字內容
-            text_marker.scale.z = 0.2 # 文字高度
+            text_marker.text = pred_label  # 文字內容
+            text_marker.scale.z = 0.2  # 文字高度
 
             text_marker.color.r = 1.0
             text_marker.color.g = 1.0
             text_marker.color.b = 1.0
-            text_marker.color.a = 1.0 # 不透明
+            text_marker.color.a = 1.0  # 不透明
 
             marker_array.markers.append(text_marker)
 
@@ -101,34 +113,74 @@ def marker_publish(segments, num_segments, points, frame_id):
 
 
 def scan_callback(scan: LaserScan):
-    global i
+    global i, stumps, alphas
+    if stumps is None or alphas is None:
+        rospy.logwarn('模型尚未載入，無法進行預測。')
+        return
+
     ranges = np.array(scan.ranges)
     angles = scan.angle_min + np.arange(len(ranges)) * scan.angle_increment
 
     # 將極座標轉換為直角座標
     x = ranges * np.cos(angles)
     y = ranges * np.sin(angles)
-    points = np.vstack((x, y)).T # N x 2 array
+    points = np.vstack((x, y)).T  # N x 2 array
 
     # 呼叫分割函數
-    segments, _, num_segments = segment(points)
-    rospy.loginfo(f'{i}: Found {num_segments} segments.')
+    segments, Si_n, num_segments = segment(points)
+    # rospy.loginfo(f'{i}: Found {num_segments} segments.')
+
+    predictions = [''] * num_segments
+    features_to_predict = []
+    idx_to_predict = []
+
+    for seg_idx in range(num_segments):
+        if Si_n[seg_idx] < 3:
+            predictions[seg_idx] = 'O'  # 點太少，直接標為'Other'
+            continue
+
+        segment_points = points[segments[seg_idx]]
+        # 提取特徵，結構必須與訓練時完全相同
+        features = extract_features(segment_points)
+        features_to_predict.append(features)
+        idx_to_predict.append(seg_idx)
+
+    # 一次性對所有需要預測的片段進行預測
+    if features_to_predict:
+        predicted_labels = adaboost_predict(
+            np.array(features_to_predict), stumps, alphas
+        )
+        for idx, label in zip(idx_to_predict, predicted_labels):
+            predictions[idx] = label
+
+    rospy.loginfo(f'{i}: Found {num_segments} segments. Predictions: {predictions}')
 
     # rviz標記
-    marker_publish(segments, num_segments, points, scan.header.frame_id)
+    marker_publish(segments, points, predictions, scan.header.frame_id)
 
     i += 1
 
 
 def main():
-    global marker_pub
+    global marker_pub, stumps, alphas
     rospy.init_node('ds_mid_node')
+
+    model_path = os.path.join(os.path.dirname(__file__), '../model/adaboost_model.npz')
+    try:
+        model = np.load(model_path, allow_pickle=True)
+        stumps = model['stumps']
+        alphas = model['alphas']
+        rospy.loginfo('模型載入成功。')
+    except FileNotFoundError:
+        rospy.logerr(f'找不到模型檔案: {model_path}')
+        return
 
     marker_pub = rospy.Publisher('/laser_segments', MarkerArray, queue_size=10)
 
     rospy.Subscriber('/scan', LaserScan, scan_callback)
 
     rospy.spin()
+
 
 if __name__ == '__main__':
     main()

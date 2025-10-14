@@ -1,1 +1,5 @@
 **/__pycache__/
+ruff.toml
+.mypy_cache/
+.vscode/
+test/
