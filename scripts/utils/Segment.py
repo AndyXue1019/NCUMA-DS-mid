@@ -3,6 +3,8 @@
 import numpy as np
 from typing import List, Tuple
 
+from sklearn.decomposition import PCA
+
 
 def segment(xy: np.ndarray) -> Tuple[List[List[int]], List[int], int]:
     """
@@ -63,3 +65,198 @@ def segment(xy: np.ndarray) -> Tuple[List[List[int]], List[int], int]:
     num_segments = len(segments)
 
     return segments, segment_sizes, num_segments
+
+
+def merge_segments(
+    segments: List[List[int]],
+    points: np.ndarray,
+    merge_dist_thresh=0.1,
+    linearity_thresh=0.001,
+    circularity_thresh=0.05,
+) -> Tuple[List[List[int]], List[int], int]:
+    """
+    合併相鄰且相似的片段。\n
+    :param segments: 原始片段列表\n
+    :param points: 所有點的座標\n
+    :param merge_dist_thresh: 相鄰片段端點的最大合併距離\n
+    :param linearity_thresh: 用於判斷片段是否為直線的線性度誤差閾值\n
+    :param circularity_thresh: 用於判斷合併後片段是否為圓的圓度誤差閾值\n
+    :return: 合併後的片段列表\n
+    """
+    if not segments:
+        return [], [], 0
+
+    current_segments = [list(seg) for seg in segments if seg]
+
+    i = 0
+    while i < len(current_segments) - 1:
+        seg1 = current_segments[i]
+        seg2 = current_segments[i + 1]
+
+        # 1. 檢查距離鄰近性
+        p_last_of_seg1 = points[seg1[-1]]
+        p_first_of_seg2 = points[seg2[0]]
+        dist = np.linalg.norm(p_last_of_seg1 - p_first_of_seg2)
+
+        if dist < merge_dist_thresh:
+            # 2. 試探性合併
+            temp_merged_indices = seg1 + seg2
+            temp_merged_points = points[temp_merged_indices]
+
+            if len(temp_merged_points) < 3:
+                i += 1
+                continue
+
+            # 3. 檢查合併後新片段的形狀
+            # 檢查線性度
+            pca = PCA(n_components=2).fit(temp_merged_points)
+            merged_linearity_err = pca.explained_variance_ratio_[1]
+
+            # 檢查圓度
+            center, radius = fit_circle(temp_merged_points)
+            if np.isinf(radius):
+                merged_circularity_err = float('inf')
+            else:
+                distances_to_center = np.linalg.norm(
+                    temp_merged_points - center, axis=1
+                )
+                merged_circularity_err = np.std(distances_to_center)
+
+            # 4. 判斷是否確認合併
+            # 如果合併後仍然是直線 或 變成了一個圓，則確認合併
+            if (
+                merged_linearity_err < linearity_thresh
+                or merged_circularity_err < circularity_thresh
+            ):
+                current_segments[i] = temp_merged_indices
+                current_segments.pop(i + 1)
+                # 停在原地，檢查新的 seg1 是否能與下一個片段合併
+                continue
+
+        # 如果不合併，則繼續檢查下一個
+        i += 1
+
+    # 更新 Si_n 和 S_n
+    merged_si_n = [len(seg) for seg in current_segments]
+    merged_s_n = len(current_segments)
+
+    # 新增邏輯：檢查第一個和最後一個片段是否可以合併
+    if merged_s_n > 1:
+        seg1 = current_segments[0]
+        seg_last = current_segments[-1]
+
+        # 1. 檢查距離鄰近性
+        p_last_of_seg_last = points[seg_last[-1]]
+        p_first_of_seg1 = points[seg1[0]]
+        dist = np.linalg.norm(p_last_of_seg_last - p_first_of_seg1)
+
+        if dist < merge_dist_thresh:
+            # 2. 試探性合併
+            temp_merged_indices = seg_last + seg1
+            temp_merged_points = points[temp_merged_indices]
+
+            if len(temp_merged_points) >= 3:
+                # 3. 檢查合併後新片段的形狀 (圓度)
+                center, radius = fit_circle(temp_merged_points)
+                if not np.isinf(radius):
+                    distances_to_center = np.linalg.norm(
+                        temp_merged_points - center, axis=1
+                    )
+                    merged_circularity_err = np.std(distances_to_center)
+
+                    # 4. 如果合併後像一個圓，則確認合併
+                    if merged_circularity_err < circularity_thresh:
+                        current_segments[0] = temp_merged_indices
+                        current_segments.pop(-1)
+                        # 更新合併後的片段數量和大小
+                        merged_si_n = [len(seg) for seg in current_segments]
+                        merged_s_n = len(current_segments)
+
+    return current_segments, merged_si_n, merged_s_n
+
+
+def fit_circle(points: np.ndarray) -> Tuple[Tuple[float, float], float]:
+    """
+    使用最小二乘法擬合一個圓。
+    返回圓心 (xc, yc) 和半徑 r。
+    """
+    x = points[:, 0]
+    y = points[:, 1]
+    A = np.vstack([2 * x, 2 * y, np.ones(len(x))]).T
+    b = x**2 + y**2
+    # 解 Ac = b
+    c, _, _, _ = np.linalg.lstsq(A, b, rcond=None)
+    # 處理擬合失敗的情況
+    if c[2] + c[0]**2 + c[1]**2 < 0:
+        return (c[0], c[1]), np.inf
+    return (c[0], c[1]), np.sqrt(c[2] + c[0]**2 + c[1]**2)
+
+
+def extract_features(points) -> list:
+
+    # 特徵 1: 點的數量
+    num_points = len(points)
+
+    # 特徵 2: 片段寬度 (第一個點到最後一個點的距離)
+    width = np.linalg.norm(points[0] - points[-1])
+
+    # 特徵 3: 線性度 (使用 PCA)
+    # PCA 會找到數據變異最大的方向。
+    # explained_variance_ratio_[1] 代表垂直於主方向的變異程度。
+    # 對於直線，這個值應該非常小。
+    pca = PCA(n_components=2)
+    pca.fit(points)
+    linearity_err = pca.explained_variance_ratio_[1]
+
+    # 特徵 4、5: 圓度 (擬合圓後的誤差) 、擬合圓的半徑
+    # 計算所有點到擬合圓心的距離，然後取其標準差。
+    # 對於圓弧，這個標準差應該很小。
+    center, radius = fit_circle(points)
+    if np.isinf(radius): # 如果擬合失敗
+        circularity_err = 1.0 # 給一個較大的誤差值
+        radius = 100.0 # 給一個較大的半徑值
+    else:
+        distances_to_center = np.linalg.norm(points - center, axis=1)
+        circularity_err = np.std(distances_to_center)
+
+    # 特徵 6: 點到質心的距離標準差
+    centroid = np.mean(points, axis=0)
+    distances_to_centroid = np.linalg.norm(points - centroid, axis=1)
+    std_dev_dist = np.std(distances_to_centroid)
+
+    # 特徵 7: 曲率估計
+    # 擬合二次多項式 y = ax^2 + bx + c 來估計曲率
+    # 為了旋轉不變性，我們先將點對齊到主軸
+    points_transformed = pca.transform(points)
+    x_transformed = points_transformed[:, 0]
+    y_transformed = points_transformed[:, 1]
+    # 擬合二次多項式，曲率約等於 |2a|
+    # 檢查x的範圍以避免 "RankWarning"
+    if np.max(x_transformed) - np.min(x_transformed) < 1e-4:
+        curvature = 0.0
+    else:
+        poly_coeffs = np.polyfit(x_transformed, y_transformed, 2)
+        curvature = np.abs(2 * poly_coeffs[0])
+
+    # 特徵 8: 角度變化的標準差
+    angles = []
+    if num_points > 2:
+        for i in range(num_points - 2):
+            p1 = points[i]
+            p2 = points[i+1]
+            p3 = points[i+2]
+            v1 = p1 - p2
+            v2 = p3 - p2
+            # 計算向量夾角
+            cosine_angle = np.dot(v1, v2) / (np.linalg.norm(v1) * np.linalg.norm(v2))
+            angle = np.arccos(np.clip(cosine_angle, -1.0, 1.0))
+            angles.append(angle)
+    
+    if angles:
+        std_angle = np.std(angles)
+    else:
+        std_angle = 0.0
+
+
+    return [num_points, width, linearity_err, circularity_err, std_dev_dist, curvature, radius, std_angle]
+
