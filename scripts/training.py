@@ -106,12 +106,13 @@ def main():
 
     accuracies = []
     total_cm = np.zeros((3, 3), dtype=int)
-    class_labels = ['B', 'C', 'O'] # Box, Circle, Other
+    class_labels = ['B', 'C', 'O']  # Box, Circle, Other
 
     for fold, (train_index, test_index) in enumerate(skf.split(data_full, label_full)):
         print(f'\n--- 第 {fold + 1}/{n_splits} 摺 ---')
         data_train, data_test = data_full[train_index], data_full[test_index]
         label_train, label_test = label_full[train_index], label_full[test_index]
+        print(f'訓練集大小: {data_train.shape}, 測試集大小: {data_test.shape}')
 
         # 特徵標準化
         scaler = StandardScaler()
@@ -136,7 +137,7 @@ def main():
     mean_acc = np.mean(accuracies)
     std_acc = np.std(accuracies)
     print(f'平均準確率: {mean_acc * 100:.4f}% (+/- {std_acc * 100:.4f}%)')
-    
+
     scaler = StandardScaler()
     data_full_scaled = scaler.fit_transform(data_full)
 
