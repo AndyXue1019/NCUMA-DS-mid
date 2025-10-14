@@ -10,7 +10,7 @@ from sensor_msgs.msg import LaserScan
 from visualization_msgs.msg import Marker, MarkerArray
 
 from utils.Adaboost import adaboost_predict
-from utils.Segment import extract_features, segment
+from utils.Segment import extract_features, merge_segments, segment
 
 marker_pub = None
 i = 0
@@ -127,19 +127,21 @@ def scan_callback(scan: LaserScan):
     points = np.vstack((x, y)).T  # N x 2 array
 
     # 呼叫分割函數
-    segments, Si_n, num_segments = segment(points)
+    seg_orig, _, _ = segment(points)
+    Seg, Si_n, S_n = merge_segments(seg_orig, points)
+
     # rospy.loginfo(f'{i}: Found {num_segments} segments.')
 
-    predictions = [''] * num_segments
+    predictions = [''] * S_n
     features_to_predict = []
     idx_to_predict = []
 
-    for seg_idx in range(num_segments):
+    for seg_idx in range(S_n):
         if Si_n[seg_idx] < 3:
             predictions[seg_idx] = 'O'  # 點太少，直接標為'Other'
             continue
 
-        segment_points = points[segments[seg_idx]]
+        segment_points = points[Seg[seg_idx]]
         # 提取特徵，結構必須與訓練時完全相同
         features = extract_features(segment_points)
         features_to_predict.append(features)
@@ -153,10 +155,10 @@ def scan_callback(scan: LaserScan):
         for idx, label in zip(idx_to_predict, predicted_labels):
             predictions[idx] = label
 
-    rospy.loginfo(f'{i}: Found {num_segments} segments. Predictions: {predictions}')
+    rospy.loginfo(f'{i}: Found {S_n} segments.\nPredictions: {predictions}')
 
     # rviz標記
-    marker_publish(segments, points, predictions, scan.header.frame_id)
+    marker_publish(Seg, points, predictions, scan.header.frame_id)
 
     i += 1
 

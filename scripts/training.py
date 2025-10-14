@@ -6,9 +6,10 @@ from typing import List
 import numpy as np
 import rosbag
 from sensor_msgs.msg import LaserScan
+from sklearn.metrics import accuracy_score, confusion_matrix
 
 from utils.Adaboost import adaboost_predict, adaboost_train
-from utils.Segment import extract_features, segment
+from utils.Segment import extract_features, merge_segments, segment
 
 data_train = []
 label_train = []
@@ -37,7 +38,7 @@ def load_bag_data(bag_file) -> List[LaserScan]:
     for _, msg, _ in bag.read_messages(topics=['/scan']):
         scan_msgs.append(msg)
     bag.close()
-    print(f'讀取到 {len(scan_msgs)} 筆 LaserScan 訊息。')
+    print(f'{bag_file}: 讀取到 {len(scan_msgs)} 筆 LaserScan 訊息。')
     return scan_msgs
 
 
@@ -49,33 +50,6 @@ def label_segments(t, num_segments, data_file):
     PN[int(ball[t])] = 'C'
 
     return PN
-
-
-def confusionmat(actual, predicted):
-    return [
-        [
-            sum((a == 'O' and p == 'O') for a, p in zip(actual, predicted)),
-            sum((a == 'O' and p == 'B') for a, p in zip(actual, predicted)),
-            sum((a == 'O' and p == 'C') for a, p in zip(actual, predicted)),
-        ],
-        [
-            sum((a == 'B' and p == 'O') for a, p in zip(actual, predicted)),
-            sum((a == 'B' and p == 'B') for a, p in zip(actual, predicted)),
-            sum((a == 'B' and p == 'C') for a, p in zip(actual, predicted)),
-        ],
-        [
-            sum((a == 'C' and p == 'O') for a, p in zip(actual, predicted)),
-            sum((a == 'C' and p == 'B') for a, p in zip(actual, predicted)),
-            sum((a == 'C' and p == 'C') for a, p in zip(actual, predicted)),
-        ],
-    ]
-
-
-def accuracy(cm):
-    cm = np.array(cm)
-    accuracy = np.trace(cm) / np.sum(cm)
-    print(f'準確率: {accuracy * 100:.2f}%')
-    return accuracy
 
 
 def data_label_prepare(bag_file, label_file, mode='train'):
@@ -95,7 +69,9 @@ def data_label_prepare(bag_file, label_file, mode='train'):
         y = ranges * np.sin(angles)
         points = np.vstack((x, y)).T  # N x 2 array
 
-        Seg, Si_n, S_n = segment(points)
+        Seg, _, _ = segment(points)
+        Seg, Si_n, S_n = merge_segments(Seg, points)
+
         PN = label_segments(t, S_n, label_file)
 
         # # 提取每個片段的特徵
@@ -103,9 +79,6 @@ def data_label_prepare(bag_file, label_file, mode='train'):
             if Si_n[i] < 3:
                 continue
             segment_points = np.array([points[idx] for idx in Seg[i]])
-
-            # 點的數量
-            # n = Si_n[i]
 
             features = extract_features(segment_points)
 
@@ -154,16 +127,14 @@ def main():
     test_pred = adaboost_predict(data_test, stumps, alphas)
 
     print('--- 訓練資料集 ---')
-    cm_train = confusionmat(label_train, train_pred)
-    for row in cm_train:
-        print(row)
-    accuracy(cm_train)
+    cm_train = confusion_matrix(label_train, train_pred, labels=['O', 'B', 'C'])
+    print(cm_train)
+    print(f'準確率: {accuracy_score(label_train, train_pred) * 100:.4f}%')
 
     print('--- 測試資料集 ---')
-    cm_test = confusionmat(label_test, test_pred)
-    for row in cm_test:
-        print(row)
-    accuracy(cm_test)
+    cm_test = confusion_matrix(label_test, test_pred, labels=['O', 'B', 'C'])
+    print(cm_test)
+    print(f'準確率: {accuracy_score(label_test, test_pred) * 100:.4f}%')
 
 
 if __name__ == '__main__':
