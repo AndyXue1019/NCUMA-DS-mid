@@ -6,7 +6,7 @@ from typing import List
 import numpy as np
 import rosbag
 from sensor_msgs.msg import LaserScan
-from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
+from sklearn.metrics import accuracy_score, confusion_matrix
 from sklearn.model_selection import StratifiedKFold
 from sklearn.preprocessing import StandardScaler
 
