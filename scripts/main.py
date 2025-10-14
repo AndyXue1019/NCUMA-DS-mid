@@ -8,6 +8,7 @@ import rospy
 from geometry_msgs.msg import Point
 from sensor_msgs.msg import LaserScan
 from visualization_msgs.msg import Marker, MarkerArray
+from sklearn.preprocessing import StandardScaler
 
 from utils.Adaboost import adaboost_predict
 from utils.Segment import extract_features, merge_segments, segment
@@ -16,6 +17,7 @@ marker_pub = None
 i = 0
 stumps = None
 alphas = None
+scaler = None
 
 LABEL_COLORS = {
     'B': (0.0, 0.0, 1.0),  # Blue for Box
@@ -113,9 +115,9 @@ def marker_publish(segments, points, predictions, frame_id):
 
 
 def scan_callback(scan: LaserScan):
-    global i, stumps, alphas
-    if stumps is None or alphas is None:
-        rospy.logwarn('模型尚未載入，無法進行預測。')
+    global i, stumps, alphas, scaler
+    if stumps is None or alphas is None or scaler is None:
+        rospy.logwarn('模型或標準化參數尚未載入。')
         return
 
     ranges = np.array(scan.ranges)
@@ -149,9 +151,9 @@ def scan_callback(scan: LaserScan):
 
     # 一次性對所有需要預測的片段進行預測
     if features_to_predict:
-        predicted_labels = adaboost_predict(
-            np.array(features_to_predict), stumps, alphas
-        )
+        features_array = np.array(features_to_predict)
+        features_scaled = scaler.transform(features_array)
+        predicted_labels = adaboost_predict(features_scaled, stumps, alphas)
         for idx, label in zip(idx_to_predict, predicted_labels):
             predictions[idx] = label
 
@@ -164,7 +166,7 @@ def scan_callback(scan: LaserScan):
 
 
 def main():
-    global marker_pub, stumps, alphas
+    global marker_pub, stumps, alphas, scaler
     rospy.init_node('ds_mid_node')
 
     model_path = os.path.join(os.path.dirname(__file__), '../model/adaboost_model.npz')
@@ -175,6 +177,17 @@ def main():
         rospy.loginfo('模型載入成功。')
     except FileNotFoundError:
         rospy.logerr(f'找不到模型檔案: {model_path}')
+        return
+    
+    scaler_path = os.path.join(os.path.dirname(__file__), '../model/scaler.npz')
+    try:
+        scaler_data = np.load(scaler_path)
+        scaler = StandardScaler()
+        scaler.mean_ = scaler_data['mean']
+        scaler.scale_ = scaler_data['scale']
+        rospy.loginfo('標準化參數載入成功。')
+    except FileNotFoundError:
+        rospy.logerr(f'找不到標準化參數檔案: {scaler_path}')
         return
 
     marker_pub = rospy.Publisher('/laser_segments', MarkerArray, queue_size=10)
