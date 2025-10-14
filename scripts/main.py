@@ -74,9 +74,9 @@ def marker_publish(tracked_objects, frame_id):
         marker.pose.position.x = x
         marker.pose.position.y = y
         marker.pose.position.z = 0.05
-        marker.scale.x = 0.2
-        marker.scale.y = 0.2
-        marker.scale.z = 0.2
+        marker.scale.x = 0.15
+        marker.scale.y = 0.15
+        marker.scale.z = 0.15
         r, g, b = LABEL_COLORS.get(label, (1.0, 1.0, 1.0))
         marker.color.r, marker.color.g, marker.color.b, marker.color.a = r, g, b, 1.0
         marker_array.markers.append(marker)
@@ -92,7 +92,11 @@ def marker_publish(tracked_objects, frame_id):
         text_marker.pose.position.x = x
         text_marker.pose.position.y = y
         text_marker.pose.position.z = 0.3  # 文字在物體上方
-        text_marker.text = f'{label}\nScore: {score:.0f}'
+        text_marker.text = ('Ball\n' if label == 'C' else 'Box\n') + f'Score:{score:.2f}'
+        # 文字大小
+        text_marker.scale.x = 0.05
+        text_marker.scale.y = 0.05
+        
         text_marker.scale.z = 0.2
         text_marker.color.r = 1.0
         text_marker.color.g = 1.0
@@ -221,6 +225,8 @@ def scan_callback(scan: LaserScan):
 
     # 5. 準備輸出與可視化
     tracked_objects_for_viz = {}
+
+    rospy.loginfo(f'i: {i}, 追蹤器數量: {len(trackers)}')
     for tracker_id, tracker_data in trackers.items():
         # 只處理 confirmed 的追蹤器
         if tracker_data['status'] != 'confirmed':
