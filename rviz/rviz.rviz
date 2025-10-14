@@ -84,7 +84,7 @@ Visualization Manager:
       Value: true
     - Class: rviz/MarkerArray
       Enabled: true
-      Marker Topic: /laser_segments
+      Marker Topic: /object_markers
       Name: MarkerArray
       Namespaces:
         object_labels: true

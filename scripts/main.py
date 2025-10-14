@@ -279,7 +279,7 @@ def main():
         rospy.logerr(f'找不到Scaler檔案: {scaler_path}')
         return
 
-    marker_pub = rospy.Publisher('/laser_segments', MarkerArray, queue_size=10)
+    marker_pub = rospy.Publisher('/object_markers', MarkerArray, queue_size=10)
 
     last_scan_time = time.time()
 
