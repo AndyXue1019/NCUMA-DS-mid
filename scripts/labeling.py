@@ -8,7 +8,7 @@ from geometry_msgs.msg import Point
 from sensor_msgs.msg import LaserScan
 from visualization_msgs.msg import Marker, MarkerArray
 
-from utils.Segment import filter_outliers, merge_segments, segment
+from utils.Segment import segment
 
 marker_pub = None
 i = 0
@@ -110,17 +110,12 @@ def scan_callback(scan: LaserScan):
     y = ranges * np.sin(angles)
     points = np.vstack((x, y)).T # N x 2 array
 
-    # 過濾
-    keep_indices = filter_outliers(points, radius=0.15, min_neighbors=2)
-    filtered_points = points[keep_indices]
-
     # 呼叫分割函數
-    Seg, _, _ = segment(filtered_points)
-    Seg, _, S_n = merge_segments(Seg, filtered_points)
-    rospy.loginfo(f'{i}: Found {S_n} segments.')
+    segments, _, num_segments = segment(points)
+    rospy.loginfo(f'{i}: Found {num_segments} segments.')
 
     # rviz標記
-    marker_publish(Seg, S_n, filtered_points, scan.header.frame_id)
+    marker_publish(segments, num_segments, points, scan.header.frame_id)
 
     i += 1
 

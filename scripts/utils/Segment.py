@@ -4,7 +4,6 @@ import numpy as np
 from typing import List, Tuple
 
 from sklearn.decomposition import PCA
-from sklearn.neighbors import KDTree
 
 
 def segment(xy: np.ndarray) -> Tuple[List[List[int]], List[int], int]:
@@ -20,9 +19,8 @@ def segment(xy: np.ndarray) -> Tuple[List[List[int]], List[int], int]:
         - num_segments (int): 總片段數量\n
     :rtype: tuple[list[list[int]], list[int], int]
     """
-    # 閾值公式: threshold = C1 * distance_to_origin + C2
-    C1 = 0.05  # 距離比例係數：距離每增加1公尺，閾值增加 5 公分
-    C2 = 0.1  # 基礎閾值：點在原點附近時的最小閾值 (10 公分)
+    # 定義距離閾值 (單位：公尺)
+    threshold = 0.3
 
     # 找出所有不是 (0,0) 的有效點的 0-based 索引
     # np.any(xy != 0, axis=1) 會回傳一個布林陣列，標示哪些行不全是零
@@ -48,26 +46,23 @@ def segment(xy: np.ndarray) -> Tuple[List[List[int]], List[int], int]:
         current_point = xy[current_idx]
         prev_point = xy[prev_idx]
 
-        # 計算當前點到感測器(原點)的距離
-        distance_to_origin = np.linalg.norm(current_point)
-
-        # 根據距離計算動態閾值
-        threshold = C1 * distance_to_origin + C2
-
         # 計算兩點之間的歐幾里得距離
         distance = np.linalg.norm(current_point - prev_point)
 
         if distance < threshold:
-            # 距離小於閾值：屬於同一個片段
+            # --- 距離小於閾值：屬於同一個片段 ---
             # 將當前點的索引加入到最後一個 (也就是當前的) 片段中
             segments[-1].append(current_idx)
         else:
-            # 距離大於閾值：開始一個新片段
+            # --- 距離大於閾值：開始一個新片段 ---
             # 新增一個只包含當前點索引的列表到 segments 中
             segments.append([current_idx])
 
-    segment_sizes = [len(seg) for seg in segments]  # 每個片段的大小
-    num_segments = len(segments)  # 總片段數
+    # 計算每個片段的大小
+    segment_sizes = [len(seg) for seg in segments]
+
+    # 總片段數
+    num_segments = len(segments)
 
     return segments, segment_sizes, num_segments
 
@@ -178,44 +173,6 @@ def merge_segments(
                         merged_s_n = len(current_segments)
 
     return current_segments, merged_si_n, merged_s_n
-
-
-def filter_outliers(
-    points: np.ndarray, radius: float = 0.15, min_neighbors: int = 2
-) -> np.ndarray:
-    """
-    使用 KD-Tree 加速的半徑異常點移除法來過濾噪聲點。
-
-    :param points: N x 2 的 NumPy 陣列，代表雷射點的 (x, y) 座標。
-    :param radius: 搜尋鄰居的半徑 (單位：公尺)。
-    :param min_neighbors: 一個點被視為非噪聲點所需的最小鄰居數 (不包含點自身)。
-    :return: 一個 NumPy 陣列，包含被保留下來的點在原始陣列中的索引。
-    """
-    # 僅處理非 (0,0) 的有效點
-    valid_indices = np.where(np.any(points != 0, axis=1))[0]
-    if len(valid_indices) < min_neighbors + 1:
-        return np.array([], dtype=int)
-
-    valid_points = points[valid_indices]
-
-    # 1. 建立 KD-Tree
-    # leaf_size 可以調整，較大的 leaf_size 可能建樹更快，但查詢稍慢
-    tree = KDTree(valid_points, leaf_size=10)
-
-    # 2. 查詢每個點在半徑內的鄰居數量
-    # tree.query_radius 回傳的是每個點的鄰居索引列表
-    # 我們只需要鄰居的數量，所以取其長度
-    # +1 是因為查詢結果會包含點自身，所以 min_neighbors 也要加 1
-    neighbors_count = tree.query_radius(valid_points, r=radius, count_only=True)
-
-    # 3. 找出鄰居數量足夠的點的索引 (相對於 valid_points)
-    # 鄰居數需大於等於 min_neighbors + 1 (因為包含自身)
-    non_outlier_local_indices = np.where(neighbors_count >= min_neighbors + 1)[0]
-
-    # 4. 將局部索引映射回原始 points 陣列的索引
-    original_indices_to_keep = valid_indices[non_outlier_local_indices]
-
-    return original_indices_to_keep
 
 
 def fit_circle(points: np.ndarray) -> Tuple[Tuple[float, float], float]:
