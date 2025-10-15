@@ -181,7 +181,7 @@ def merge_segments(
 
 
 def filter_outliers(
-    points: np.ndarray, radius: float = 0.15, min_neighbors: int = 2
+    points: np.ndarray, radius: float = 0.15, min_neighbors: int = 3
 ) -> np.ndarray:
     """
     使用 KD-Tree 加速的半徑異常點移除法來過濾噪聲點。
