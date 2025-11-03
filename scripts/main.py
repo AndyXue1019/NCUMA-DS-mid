@@ -12,7 +12,7 @@ from sklearn.preprocessing import StandardScaler
 
 from utils.Adaboost import adaboost_predict_proba
 from utils.BayesFilter import BayesFilter
-from utils.Segment import extract_features, merge_segments, segment
+from utils.Segment import extract_features, handle_scan
 
 ROBOT_NAME = 'turtlebot'
 marker_pub = None
@@ -136,17 +136,7 @@ def scan_callback(scan: LaserScan):
         rospy.logwarn('模型或標準化參數尚未載入。')
         return
 
-    ranges = np.array(scan.ranges)
-    angles = scan.angle_min + np.arange(len(ranges)) * scan.angle_increment
-
-    # 將極座標轉換為直角座標
-    x = ranges * np.cos(angles)
-    y = ranges * np.sin(angles)
-    points = np.vstack((x, y)).T  # N x 2 array
-
-    # 呼叫分割函數
-    seg_orig, _, _ = segment(points)
-    Seg, Si_n, S_n = merge_segments(seg_orig, points)
+    Seg, Si_n, S_n, points = handle_scan(scan)
 
     # === 1. 對當前所有 segments 進行分類預測 ===
     current_detections = []

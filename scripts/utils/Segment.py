@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-import numpy as np
 from typing import List, Tuple
 
+import numpy as np
+from sensor_msgs.msg import LaserScan
 from sklearn.decomposition import PCA
 from sklearn.neighbors import KDTree
 
@@ -302,7 +303,12 @@ def extract_features(points: np.ndarray) -> list:
             v1 = p1 - p2
             v2 = p3 - p2
             # 計算向量夾角
-            cosine_angle = np.dot(v1, v2) / (np.linalg.norm(v1) * np.linalg.norm(v2))
+            norm_v1 = np.linalg.norm(v1)
+            norm_v2 = np.linalg.norm(v2)
+            # 避免除以零
+            if norm_v1 == 0 or norm_v2 == 0:
+                continue
+            cosine_angle = np.dot(v1, v2) / (norm_v1 * norm_v2)
             angle = np.arccos(np.clip(cosine_angle, -1.0, 1.0))
             angles.append(angle)
 
@@ -323,3 +329,32 @@ def extract_features(points: np.ndarray) -> list:
         radius,
         std_angle,
     ]
+
+
+def handle_scan(scan: LaserScan) -> Tuple[List[List[int]], List[int], int, np.ndarray]:
+    """
+    處理 LaserScan 訊息，回傳分割結果和過濾噪點後的點雲。\n
+    :param scan: LaserScan 訊息
+    :return: Seg, Si_n, S_n, filtered_points\n
+        - Seg: List[List[int]] 分割後的片段\n
+        - Si_n: List[int] 每個片段的點數量\n
+        - S_n: int 片段總數量\n
+        - filtered_points: np.ndarray 過濾噪點後的點雲\n
+    """
+    ranges = np.array(scan.ranges)
+    angles = scan.angle_min + np.arange(len(ranges)) * scan.angle_increment
+
+    # 將極座標轉換為直角座標
+    x = ranges * np.cos(angles)
+    y = ranges * np.sin(angles)
+    points = np.vstack((x, y)).T  # N x 2 array
+
+    # 過濾
+    keep_indices = filter_outliers(points, radius=0.15, min_neighbors=5)
+    filtered_points = points[keep_indices]
+
+    # 呼叫分割函數
+    Seg, _, _ = segment(filtered_points)
+    Seg, Si_n, S_n = merge_segments(Seg, filtered_points)
+
+    return Seg, Si_n, S_n, filtered_points

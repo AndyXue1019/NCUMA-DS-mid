@@ -11,9 +11,9 @@ from sklearn.model_selection import StratifiedKFold
 from sklearn.preprocessing import StandardScaler
 
 from utils.Adaboost import adaboost_predict, adaboost_train
-from utils.Segment import extract_features, merge_segments, segment
+from utils.Segment import extract_features, handle_scan
 
-ROBOT_NAME = 'turtlebot'
+ROBOT_NAME = 'minibot'
 data_full = []
 label_full = []
 
@@ -54,23 +54,14 @@ def data_label_prepare(bag_file, label_file):
     scan_msgs = load_bag_data(bag_file)
 
     for t, scan in enumerate(scan_msgs):
-        ranges = np.array(scan.ranges)
-        angles = scan.angle_min + np.arange(len(ranges)) * scan.angle_increment
-
-        x = ranges * np.cos(angles)
-        y = ranges * np.sin(angles)
-        points = np.vstack((x, y)).T  # N x 2 array
-
-        Seg, _, _ = segment(points)
-        Seg, Si_n, S_n = merge_segments(Seg, points)
-
+        Seg, Si_n, S_n, filtered_points = handle_scan(scan)
         PN = label_segments(t, S_n, label_file)
 
-        # # 提取每個片段的特徵
+        # 提取每個片段的特徵
         for i in range(S_n):
-            if Si_n[i] < 3:
+            if Si_n[i] < 3: # 太小的片段跳過
                 continue
-            segment_points = np.array([points[idx] for idx in Seg[i]])
+            segment_points = np.array([filtered_points[idx] for idx in Seg[i]])
 
             features = extract_features(segment_points)
 
@@ -85,7 +76,7 @@ def main():
 
     # 準備訓練資料 (可自訂)
     print('準備資料...')
-    for i in [1, 2, 3]:
+    for i in [1, 2]:
         print(f'處理第 {i} 筆資料...')
         data_label_prepare(bag_file.format(i), label_file.format(i))
 
