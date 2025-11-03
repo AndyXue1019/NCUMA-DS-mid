@@ -17,8 +17,8 @@ from utils.Segment import extract_features, handle_scan
 
 os.chdir(rospkg.RosPack().get_path('ds_mid'))
 
-ROBOT_NAME = rospy.get_param('~robot', 'turtlebot')
-print(f'目前使用{ROBOT_NAME}')
+ROBOT_NAME = ''
+
 marker_pub = None
 i = 0
 stumps = None
@@ -294,8 +294,11 @@ def scan_callback(scan: LaserScan):
 
 
 def main():
-    global marker_pub, stumps, alphas, scaler
+    global ROBOT_NAME, marker_pub, stumps, alphas, scaler
     rospy.init_node('ds_mid_node')
+
+    ROBOT_NAME = rospy.get_param('~robot', 'turtlebot')
+    print(f'目前使用{ROBOT_NAME}')
 
     model_path = f'./model/{ROBOT_NAME}/adaboost_model.npz'
     try:
