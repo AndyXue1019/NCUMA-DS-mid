@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 import csv
+import os
 from typing import List
 
 import numpy as np
 import rosbag
+import rospkg
 from sensor_msgs.msg import LaserScan
 from sklearn.metrics import accuracy_score, confusion_matrix
 from sklearn.model_selection import StratifiedKFold
@@ -12,6 +14,8 @@ from sklearn.preprocessing import StandardScaler
 
 from utils.Adaboost import adaboost_predict, adaboost_train
 from utils.Segment import extract_features, handle_scan
+
+os.chdir(rospkg.RosPack().get_path('ds_mid'))
 
 ROBOT_NAME = 'minibot'
 data_full = []
@@ -59,7 +63,7 @@ def data_label_prepare(bag_file, label_file):
 
         # 提取每個片段的特徵
         for i in range(S_n):
-            if Si_n[i] < 3: # 太小的片段跳過
+            if Si_n[i] < 3:  # 太小的片段跳過
                 continue
             segment_points = np.array([filtered_points[idx] for idx in Seg[i]])
 
@@ -74,9 +78,9 @@ def main():
     bag_file = f'./data/{ROBOT_NAME}/data_{{}}.bag'
     label_file = f'./data/{ROBOT_NAME}/data_{{}}_label.csv'
 
-    # 準備訓練資料 (可自訂)
+    # 準備訓練資料
     print('準備資料...')
-    for i in [1, 2]:
+    for i in [1, 2]: # 可根據需要調整資料集編號
         print(f'處理第 {i} 筆資料...')
         data_label_prepare(bag_file.format(i), label_file.format(i))
 
