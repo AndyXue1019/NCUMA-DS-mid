@@ -36,8 +36,8 @@ class LabelingTool:
         ax_prev = plt.axes([0.7, 0.05, 0.1, 0.075])
         ax_next = plt.axes([0.81, 0.05, 0.1, 0.075])
         ax_save = plt.axes([0.59, 0.05, 0.1, 0.075])
-        self.btn_prev = Button(ax_prev, 'Prev (p)')
-        self.btn_next = Button(ax_next, 'Next (n)')
+        self.btn_prev = Button(ax_prev, 'Prev (←)')
+        self.btn_next = Button(ax_next, 'Next (→)')
         self.btn_save = Button(ax_save, 'Save (s)')
         self.btn_prev.on_clicked(self.prev_scan)
         self.btn_next.on_clicked(self.next_scan)
@@ -103,7 +103,7 @@ class LabelingTool:
         self.ax.set_xlabel('X (m)')
         self.ax.set_ylabel('Y (m)')
 
-        title = f'Scan {self.current_scan_index}/{len(self.scan_msgs)}\n'
+        title = f'Scan {self.current_scan_index + 1}/{len(self.scan_msgs)}\n'
         title += f'Ball: {ball_seg_idx if ball_seg_idx is not None else "---"} | '
         title += f'Box: {box_seg_idx if box_seg_idx is not None else "---"}'
         self.ax.set_title(title)
@@ -135,9 +135,9 @@ class LabelingTool:
         self.plot_scan()
 
     def on_key(self, event):
-        if event.key == 'n':
+        if event.key == 'right':
             self.next_scan(None)
-        elif event.key == 'p':
+        elif event.key == 'left':
             self.prev_scan(None)
         elif event.key == 's':
             self.save_labels()
