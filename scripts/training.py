@@ -1,19 +1,16 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-import csv
 import os
-from typing import List
 
 import numpy as np
-import rosbag
 import rospkg
-from sensor_msgs.msg import LaserScan
 from sklearn.metrics import accuracy_score, confusion_matrix
 from sklearn.model_selection import StratifiedKFold
 from sklearn.preprocessing import StandardScaler
 
 from utils.Adaboost import adaboost_predict, adaboost_train
 from utils.Segment import extract_features, handle_scan
+from scripts.utils.Loader import load_bag_data, load_label
 
 os.chdir(rospkg.RosPack().get_path('ds_mid'))
 
@@ -22,32 +19,12 @@ data_full = []
 label_full = []
 
 
-def load_bag_data(bag_file) -> List[LaserScan]:
-    """
-    從 ROS bag 檔案中讀取 LaserScan 資料。
-    """
-    bag = rosbag.Bag(bag_file)
-    scan_msgs = []
-    for _, msg, _ in bag.read_messages(topics=['/scan']):
-        scan_msgs.append(msg)
-    bag.close()
-    print(f'{bag_file}: 讀取到 {len(scan_msgs)} 筆 LaserScan 訊息。')
-    return scan_msgs
-
-
 def label_segments(t, num_segments, data_file):
-    ball = []
-    box = []
-    with open(data_file, 'r') as f:
-        reader = csv.reader(f)
-        next(reader)  # 跳過標題列
-        for x, y in reader:
-            ball.append(x)
-            box.append(y)
+    labels = load_label(data_file)
 
     PN = [0] * num_segments  # 預設標籤為 'O' (Other)
-    PN[int(ball[t])] = 1
-    PN[int(box[t])] = 2
+    PN[labels[t]['ball']] = 1
+    PN[labels[t]['box']] = 2
 
     return PN
 
@@ -80,7 +57,7 @@ def main():
 
     # 準備訓練資料
     print('準備資料...')
-    for i in [1, 2]: # 可根據需要調整資料集編號
+    for i in [1, 2]:  # 可根據需要調整資料集編號
         print(f'處理第 {i} 筆資料...')
         data_label_prepare(bag_file.format(i), label_file.format(i))
 
