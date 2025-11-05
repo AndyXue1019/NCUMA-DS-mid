@@ -23,6 +23,7 @@ i = 0
 stumps = None
 alphas = None
 scaler = None
+sensor_model = None
 
 tracked_objects = {}
 next_object_id = 0
@@ -41,7 +42,7 @@ class ObjectTracker:
         self.id = object_id
         self.centroid = np.mean(initial_points, axis=0)
         # 初始信念可以基於第一次的觀測
-        self.filter = BayesFilter(initial_observation_proba, ROBOT_NAME)
+        self.filter = BayesFilter(initial_observation_proba, sensor_model=sensor_model)
         self.time_since_update = 0
         self.history = [self.centroid]  # 記錄歷史位置
 
@@ -281,7 +282,7 @@ def scan_callback(scan: LaserScan):
 
 
 def main():
-    global ROBOT_NAME, marker_pub, stumps, alphas, scaler
+    global ROBOT_NAME, marker_pub, stumps, alphas, scaler, sensor_model
     rospy.init_node('ds_mid_node')
 
     ROBOT_NAME = rospy.get_param('~robot', 'turtlebot')
@@ -308,6 +309,15 @@ def main():
     except FileNotFoundError:
         rospy.logerr(f'找不到Scaler檔案: {scaler_path}')
         rospy.signal_shutdown('找不到Scaler檔案')
+        return
+    
+    sensor_model_path = f'./model/{ROBOT_NAME}/sensor_model.npz'
+    try:
+        sensor_model = np.load(sensor_model_path)['sensor_model']
+        rospy.loginfo('Sensor Model載入成功。')
+    except FileNotFoundError:
+        rospy.logerr(f'找不到Sensor Model檔案: {sensor_model_path}')
+        rospy.signal_shutdown('找不到Sensor Model檔案')
         return
 
     marker_pub = rospy.Publisher('/object_markers', MarkerArray, queue_size=10)

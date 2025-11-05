@@ -10,7 +10,7 @@ from sklearn.preprocessing import StandardScaler
 
 from utils.Adaboost import adaboost_predict, adaboost_train
 from utils.Segment import extract_features, handle_scan
-from scripts.utils.Loader import load_bag_data, load_label
+from utils.Loader import load_bag_data, load_label
 
 os.chdir(rospkg.RosPack().get_path('ds_mid'))
 
@@ -33,10 +33,13 @@ def data_label_prepare(bag_file, label_file):
     global data_full, label_full
 
     scan_msgs = load_bag_data(bag_file)
+    labels = load_label(label_file)
 
     for t, scan in enumerate(scan_msgs):
         Seg, Si_n, S_n, filtered_points = handle_scan(scan)
-        PN = label_segments(t, S_n, label_file)
+        PN = [0] * S_n  # 預設標籤為 'O' (Other)
+        PN[labels[t]['ball']] = 1
+        PN[labels[t]['box']] = 2
 
         # 提取每個片段的特徵
         for i in range(S_n):
@@ -118,15 +121,29 @@ def main():
     std_bc_acc = np.std(bc_accuracies)
     print(f'平均 球/箱 準確率: {mean_bc_acc * 100:.4f}% (+/- {std_bc_acc * 100:.4f}%)')
 
+    # 轉換成 Bayes Filter 的Sensor Model (取到小數點後第四位)
+    print('\n=== Bayes Filter Sensor Model ===')
+    sensor_model = np.zeros((3, 3))
+    for i in range(3):
+        row_sum = np.sum(total_cm[i, :])
+        if row_sum > 0:
+            for j in range(3):
+                sensor_model[i, j] = round(total_cm[i, j] / row_sum, 4)
+        else:
+            sensor_model[i, :] = 0.0  # 避免除以零
+    print(sensor_model)
+    print()
+
     scaler = StandardScaler()
     data_full_scaled = scaler.fit_transform(data_full)
 
     stumps, alphas = adaboost_train(data_full_scaled, label_full, T=50)
 
-    # 儲存訓練好的模型和標準化參數
+    # 儲存訓練好的模型、標準化參數、Sensor Model
     np.savez(f'./model/{ROBOT_NAME}/adaboost_model.npz', stumps=stumps, alphas=alphas)
     np.savez(f'./model/{ROBOT_NAME}/scaler.npz', mean=scaler.mean_, scale=scaler.scale_)
-    print(f'模型與Scaler已儲存至 ./model/{ROBOT_NAME}/')
+    np.savez(f'./model/{ROBOT_NAME}/sensor_model.npz', sensor_model=sensor_model)
+    print(f'模型、Scaler與Sensor Model已儲存至 ./model/{ROBOT_NAME}/')
 
 
 if __name__ == '__main__':
