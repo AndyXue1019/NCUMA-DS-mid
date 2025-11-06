@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 from typing import Tuple, List, Dict
 
 import numpy as np
