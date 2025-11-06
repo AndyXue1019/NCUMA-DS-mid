@@ -50,7 +50,7 @@ class LabelingTool:
         print('\n--- 操作說明 ---')
         print("點擊 'ball' 或 'box' 切換標記模式。")
         print('點擊畫面中的 Segment 進行標記。')
-        print("按 'n' 或 'p' (或點擊按鈕) 切換畫面。")
+        print("按 '←' 或 '→' (或點擊按鈕) 切換畫面。")
         print("按 's' (或點擊按鈕) 儲存標籤。")
         print("按 'c' 清除當前畫面的標籤。")
         print("按 'q' 關閉視窗。")
