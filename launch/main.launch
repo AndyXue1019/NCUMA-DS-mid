@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <launch>
-  <arg name="robot" default="turtlebot" />
+  <arg name="robot" default="minibot" />
   <node pkg="ds_mid" type="main.py" name="main"  output="screen" required="true">
     <param name="robot" value="$(arg robot)" />
   </node>
