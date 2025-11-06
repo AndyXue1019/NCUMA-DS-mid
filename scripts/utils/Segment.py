@@ -279,21 +279,33 @@ def extract_features(points: np.ndarray) -> list:
     distances_to_centroid = np.linalg.norm(points - centroid, axis=1)
     std_dev_dist = np.std(distances_to_centroid)
 
-    # 特徵 9: 曲率估計
-    # 擬合二次多項式 y = ax^2 + bx + c 來估計曲率
     # 為了旋轉不變性，我們先將點對齊到主軸
     points_transformed = pca.transform(points)
     x_transformed = points_transformed[:, 0]
     y_transformed = points_transformed[:, 1]
-    # 擬合二次多項式，曲率約等於 |2a|
+    
     # 檢查x的範圍以避免 "RankWarning"
-    if np.max(x_transformed) - np.min(x_transformed) < 1e-4:
+    x_range = np.max(x_transformed) - np.min(x_transformed)
+
+    # 特徵 9: 線性擬合均方根誤差 (Line Fit RMSE)
+    # 擬合一次多項式 (直線) y = ax + b
+    if x_range < 1e-4:
+        line_fit_rmse = 0.0
+    else:
+        poly_coeffs_line = np.polyfit(x_transformed, y_transformed, 1)
+        # 計算 RMSE
+        y_predicted_line = poly_coeffs_line[0] * x_transformed + poly_coeffs_line[1]
+        line_fit_rmse = np.sqrt(np.mean((y_transformed - y_predicted_line) ** 2))
+
+    # 特徵 10: 曲率估計
+    # 擬合二次多項式 y = ax^2 + bx + c 來估計曲率
+    if x_range < 1e-4:
         curvature = 0.0
     else:
         poly_coeffs = np.polyfit(x_transformed, y_transformed, 2)
-        curvature = np.abs(2 * poly_coeffs[0])
+        curvature = np.abs(2 * poly_coeffs[0]) # 曲率約等於 |2a|
 
-    # 特徵 10: 角度變化的標準差
+    # 特徵 11: 角度變化的標準差 (原特徵 10)
     angles = []
     if num_points > 2:
         for i in range(num_points - 2):
@@ -314,20 +326,25 @@ def extract_features(points: np.ndarray) -> list:
 
     if angles:
         std_angle = np.std(angles)
+        # 特徵 12: 最大轉角 (Max Angle)
+        max_angle = np.max(angles)
     else:
         std_angle = 0.0
+        max_angle = 0.0
 
     return [
-        num_points,
-        width,
-        linearity_err,
-        aspect_ratio,
-        point_density,
-        circularity_err,
-        std_dev_dist,
-        curvature,
-        radius,
-        std_angle,
+        num_points,       # 1
+        width,            # 2
+        linearity_err,    # 3
+        aspect_ratio,     # 4
+        point_density,    # 5
+        circularity_err,  # 6
+        std_dev_dist,     # 7
+        line_fit_rmse,    # 8
+        curvature,        # 9
+        radius,           # 10
+        std_angle,        # 11
+        max_angle,        # 12
     ]
 
 
