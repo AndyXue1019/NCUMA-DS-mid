@@ -310,7 +310,7 @@ def main():
         rospy.logerr(f'找不到Scaler檔案: {scaler_path}')
         rospy.signal_shutdown('找不到Scaler檔案')
         return
-    
+
     sensor_model_path = f'./model/{ROBOT_NAME}/sensor_model.npz'
     try:
         sensor_model = np.load(sensor_model_path)['sensor_model']
