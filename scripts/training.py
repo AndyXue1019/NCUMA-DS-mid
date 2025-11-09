@@ -7,6 +7,7 @@ import rospkg
 from sklearn.metrics import accuracy_score, confusion_matrix
 from sklearn.model_selection import StratifiedKFold
 from sklearn.preprocessing import StandardScaler
+from tqdm import tqdm
 
 from utils.Adaboost import adaboost_predict, adaboost_train
 from utils.Segment import extract_features, handle_scan
@@ -48,16 +49,24 @@ def main():
     bag_file = f'./data/{ROBOT_NAME}/data_{{}}.bag'
     label_file = f'./data/{ROBOT_NAME}/data_{{}}_label.csv'
 
+    n_estimators = 100  # Adaboost 弱分類器數量
+
     # 準備訓練資料
-    print('準備資料...')
+    data_train_full = []
+    label_train_full = []
+    data_val = []
+    label_val = []
+    print('載入資料中...')
     # 訓練資料集
-    for i in [1, 2]:  # 可根據需要調整資料集編號
-        print(f'處理資料{i}...')
-        data_train_full, label_train_full = data_label_prepare(bag_file.format(i), label_file.format(i))
+    for i in tqdm([5, 6, 8, 9, 10, 11], desc='處理訓練資料'):  # 可根據需要調整資料集編號
+        data_part, label_part = data_label_prepare(bag_file.format(i), label_file.format(i))
+        data_train_full.extend(data_part)
+        label_train_full.extend(label_part)
     # 驗證資料集
-    for i in [3, 4]:
-        print(f'處理資料{i}...')
-        data_val, label_val = data_label_prepare(bag_file.format(i), label_file.format(i))
+    for i in tqdm([1, 2, 3, 4], desc='處理驗證資料'):
+        data_part, label_part = data_label_prepare(bag_file.format(i), label_file.format(i))
+        data_val.extend(data_part)
+        label_val.extend(label_part)
 
     # 將訓練和測試數據轉換為 NumPy 陣列
     data_train_full = np.array(data_train_full)
@@ -76,7 +85,7 @@ def main():
     class_labels = [0, 1, 2]  # Other, Ball, Box
 
     for fold, (train_index, test_index) in enumerate(skf.split(data_train_full, label_train_full)):
-        print(f'\n--- 第 {fold + 1}/{n_splits} 摺 ---')
+        print('\n' + '-' * 20 + f'第 {fold + 1}/{n_splits} 摺' + '-' * 20)
         data_train, data_test = data_train_full[train_index], data_train_full[test_index]
         label_train, label_test = label_train_full[train_index], label_train_full[test_index]
         print(f'訓練集大小: {data_train.shape}, 測試集大小: {data_test.shape}')
@@ -86,7 +95,7 @@ def main():
         data_train = scaler.fit_transform(data_train)
         data_test = scaler.transform(data_test)
 
-        stumps, alphas = adaboost_train(data_train, label_train, T=100)
+        stumps, alphas = adaboost_train(data_train, label_train, T=n_estimators)
 
         test_pred = adaboost_predict(data_test, stumps, alphas)
 
@@ -132,7 +141,7 @@ def main():
     scaler = StandardScaler()
     data_full_scaled = scaler.fit_transform(data_train_full)
 
-    stumps, alphas = adaboost_train(data_full_scaled, label_train_full, T=100)
+    stumps, alphas = adaboost_train(data_full_scaled, label_train_full, T=n_estimators)
 
     # 驗證資料集
     if data_val and label_val:
@@ -145,12 +154,19 @@ def main():
         print(cm)
         val_acc = accuracy_score(label_val, val_pred)
         print(f'驗證資料集準確率: {val_acc * 100:.4f}%')
-        val_bc_indices = np.where((label_val == 1) | (label_val == 2))
-        if len(val_bc_indices[0]) > 0:
-            val_bc_acc = accuracy_score(label_val[val_bc_indices], val_pred[val_bc_indices])
+
+        val_b_indices = np.where(label_val == 1)
+        if len(val_b_indices[0]) > 0:
+            val_b_acc = accuracy_score(label_val[val_b_indices], val_pred[val_b_indices])
         else:
-            val_bc_acc = 0.0
-        print(f'驗證資料集 球/箱 準確率: {val_bc_acc * 100:.4f}%')
+            val_b_acc = 0.0
+        val_c_indices = np.where(label_val == 2)
+        if len(val_c_indices[0]) > 0:
+            val_c_acc = accuracy_score(label_val[val_c_indices], val_pred[val_c_indices])
+        else:
+            val_c_acc = 0.0
+        print(f'驗證資料集 球 準確率: {val_b_acc * 100:.4f}%')
+        print(f'驗證資料集 箱 準確率: {val_c_acc * 100:.4f}%')
         print()
 
     # 儲存訓練好的模型、標準化參數、Sensor Model
