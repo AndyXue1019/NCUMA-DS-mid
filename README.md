@@ -26,3 +26,8 @@ source devel/setup.bash
     ```bash
     roslaunch ds_mid main.launch robot:=<ROBOT_NAME>
     ```
+
+## AI chat records:
+- https://gemini.google.com/share/2e12b1677e29
+- https://gemini.google.com/share/30074d7c94e3
+- https://gemini.google.com/share/7072cea32dfe
