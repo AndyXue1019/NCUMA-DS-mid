@@ -20,7 +20,7 @@ def load_bag_data(bag_file) -> List[LaserScan]:
     for _, msg, _ in bag.read_messages(topics=['/scan']):
         scan_msgs.append(msg)
     bag.close()
-    print(f'{bag_file}: 讀取到 {len(scan_msgs)} 筆 LaserScan 訊息。')
+    # print(f'{bag_file}: 讀取到 {len(scan_msgs)} 筆 LaserScan 訊息。')
     return scan_msgs
 
 
@@ -43,7 +43,7 @@ def load_label(label_file) -> List[Dict[str, int]]:
                 if row['box']:
                     label_dict['box'] = int(row['box'])
                 labels.append(label_dict)
-        print(f'{label_file}: 讀取到 {len(labels)} 筆標籤資料。')
+        # print(f'{label_file}: 讀取到 {len(labels)} 筆標籤資料。')
     except IOError as e:
         print(f'讀取標籤檔案 {label_file} 時發生錯誤: {e}')
 
