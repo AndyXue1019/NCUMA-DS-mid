@@ -6,7 +6,7 @@
 ### 1. Clone this repository into your ROS(1) workspace:
 ```bash
 cd ~/catkin_ws/src
-git clone https://github.com/AndyXue1019/ds-mid.git
+git clone https://github.com/AndyXue1019/NCUMA-DS-Mid.git ds-mid
 ```
 
 ### 2. Install the dependencies:
